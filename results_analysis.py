@@ -29,17 +29,18 @@ def load_original(time_stamp, view):
 	return img
 
 def visualize_depth(depth, show=True, save=False, fname='depth.png'):
-	min_depth = np.min(depth[depth>0])
-	max_depth = np.max(depth[depth>0])
-	depth[depth < min_depth] = 255.0
-	depth[depth > max_depth] = max_depth
+	depth_cp=np.copy(depth)
+	min_depth = np.min(depth_cp[depth_cp>0])
+	max_depth = np.max(depth_cp[depth_cp>0])
+	depth_cp[depth_cp < min_depth] = 255.0
+	depth_cp[depth_cp > max_depth] = max_depth
 
 	if show:
-		plt.imshow(depth, cmap="hot")
+		plt.imshow(depth_cp, cmap="hot")
 		plt.show()
 
 	if save:
-		plt.imsave(fname, depth, cmap="hot")
+		plt.imsave(fname, depth_cp, cmap="hot")
 
 
 def calculate_scaling_and_origin(orig, depth):
@@ -99,17 +100,33 @@ def project_3D(point, K, R, C, scale_factor, origin, size):
 
 	#Convert indices to integers
 	u=u.astype(int)
-	
+
+	#Ensure no points go outside of the canvas and that only valid_depth indices are kept
+	valid=np.logical_and(np.logical_and(u[0,:]<size, u[1,:]<size), depth>0)
+	valid_ind=np.argwhere(valid).flatten()
+
+	u=u[:, valid]
+	depth=depth[valid]
+
+	#Fill in the depth at the valid indices
 	output[u[1,:], u[0,:]]=depth
 
 	return output
 
 
-def visualize_3D(X):
+def visualize_3D(X, fname='test_point_cloud.ply'):
 	pcd=o3d.geometry.PointCloud()
 	pcd.points=o3d.utility.Vector3dVector(X)
-	o3d.io.write_point_cloud('test_point_cloud.ply', pcd)
+	o3d.io.write_point_cloud(fname, pcd)
 
+#Superimpose image 2 on top of image 1
+def superimpose(f1, f2, output='superimposed.png'):
+	img1=cv2.imread(f1)
+	img2=cv2.imread(f2)
+
+	dst=cv2.addWeighted(img1, 0.6, img2, 0.4, 0)
+
+	cv2.imwrite(output, dst)
 
 
 if __name__ == '__main__':
@@ -121,9 +138,6 @@ if __name__ == '__main__':
 	#Load masks
 	#mask1=load_mask(args.time_stamp, args.view1)
 	#mask2=load_mask(args.time_stamp, args.view2)
-
-	#Visualize
-	visualize_depth(depth1, False, True, 'intial_depth.png')
 
 	#Load intrinsics and extrinsics
 	intrinsics=np.load('../HUMBI_example/body/intrinsic_z.npy')
@@ -142,17 +156,23 @@ if __name__ == '__main__':
 
 	scale_factor, origin=calculate_scaling_and_origin(orig1, depth1)
 
-
 	points1=depth_to_3D(depth1, K1, P1[:,:3], P1[:,3], scale_factor, origin)
-	#points2=depth_to_3D(depth2, K2)
+	points2=depth_to_3D(depth2, K2, P2[:,:3], P2[:,3], scale_factor, origin)
 
 	#Visualize 3D points
-	visualize_3D(points1)
+	visualize_3D(points1, 'points1.ply')
+	visualize_3D(points2, 'points2.ply')
 
-	projection1=project_3D(points1, K1, P1[:,:3], P1[:,3], scale_factor, origin, depth1.shape[0])
+	projection=project_3D(points2, K1, P1[:,:3], P1[:,3], scale_factor, origin, 256)
 
 	#Visualize the projection
-	visualize_depth(projection1, False, True, 'reprojected_depth.png')
+	visualize_depth(depth2, False, True, 'initial.png')
+	visualize_depth(projection, False, True, 'reprojected.png')
+
+	superimpose('./initial.png', './reprojected.png')
+
+	
+	#print(np.linalg.norm(depth2-projection))
 
 
 
