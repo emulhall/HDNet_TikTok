@@ -21,7 +21,7 @@ import scipy.misc
 
 from hourglass_net_depth import hourglass_refinement
 from hourglass_net_normal import hourglass_normal_prediction
-from utils import (write_matrix_txt,get_origin_scaling,get_concat_h, depth2mesh, read_test_data, nmap_normalization, get_test_data) 
+from utils import (write_matrix_txt,get_origin_scaling,get_concat_h, depth2mesh, read_test_data, nmap_normalization, get_test_data, get_HUMBI_data, read_HUMBI_data) 
 
 ############################## test path and outpath ##################################
 data_main_path = './test_data'
@@ -77,9 +77,19 @@ with sess2.as_default():
 # Read the test images and run the HDNet
 test_files = get_test_data(data_main_path)
 
+# Read the HUMBI test images and run the HDNet
+#test_files = get_HUMBI_data(os.path.join(data_main_path, 'HUMBI_example.pkl'),'test')
+
+
 for f in range(len(test_files)):
-    data_name = test_files[f]
+#for f in range(len(test_files[0])):
+    #time_stamp = test_files[3][f]
+    #data_name = str(test_files[6][f])
+    data_name = str(test_files[f])
+    #print('Processing time stamp: ', time_stamp)
     print('Processing file: ',data_name)
+    print('\n')
+    #X,Z, Z3, DP = read_HUMBI_data(test_files,f,IMAGE_HEIGHT,IMAGE_WIDTH)
     X,Z, Z3, _, _,_,_, _,_,  _, _, DP = read_test_data(data_main_path,data_name,IMAGE_HEIGHT,IMAGE_WIDTH)
     
     prediction1n = sess2.run([out2_normal],feed_dict={x1_n:X})
@@ -104,12 +114,21 @@ for f in range(len(test_files)):
     prediction1 = sess.run([out2_1],feed_dict={x1:X_1})
     image  = np.asarray(prediction1)[0,0,...,0]
     imagen = normal_pred[0,...]
+
+    #time_stamp_dir=os.path.join(Vis_dir,test_files[3][f])
+    #if not (os.path.isdir(time_stamp_dir)):
+    #    os.mkdir(time_stamp_dir)
+
+    #output_dir=os.path.join(time_stamp_dir, test_files[6][f])
+    #if not (os.path.isdir(output_dir)):
+    #    os.mkdir(output_dir)
+    output_dir=Vis_dir[:-1]
         
-    write_matrix_txt(image*Z[0,...,0],Vis_dir+data_name+".txt")
-    write_matrix_txt(imagen[...,0]*Z[0,...,0],Vis_dir+data_name+"_normal_1.txt")
-    write_matrix_txt(imagen[...,1]*Z[0,...,0],Vis_dir+data_name+"_normal_2.txt")
-    write_matrix_txt(imagen[...,2]*Z[0,...,0],Vis_dir+data_name+"_normal_3.txt")
-    depth2mesh(image*Z[0,...,0], Z[0,...,0], Vis_dir+data_name+"_mesh")
+    write_matrix_txt(image*Z[0,...,0],os.path.join(output_dir, data_name+".txt"))
+    write_matrix_txt(imagen[...,0]*Z[0,...,0],os.path.join(output_dir,data_name+"_normal_1.txt"))
+    write_matrix_txt(imagen[...,1]*Z[0,...,0],os.path.join(output_dir, data_name+"_normal_2.txt"))
+    write_matrix_txt(imagen[...,2]*Z[0,...,0],os.path.join(output_dir, data_name+"_normal_3.txt"))
+    depth2mesh(image*Z[0,...,0], Z[0,...,0], os.path.join(output_dir,data_name+"_mesh"))
     if visualization:
         depth_map = image*Z[0,...,0]
         normal_map = imagen*Z3[0,...]
@@ -123,17 +142,17 @@ for f in range(len(test_files)):
         normal_map_rgb = np.reshape(normal_map_rgb, [256,256,3]);
         normal_map_rgb = (((normal_map_rgb + 1) / 2) * 255).astype(np.uint8);
         
-        plt.imsave(Vis_dir+data_name+"_depth.png", depth_map, cmap="hot") 
-        plt.imsave(Vis_dir+data_name+"_normal.png", normal_map_rgb) 
+        plt.imsave(os.path.join(output_dir,data_name+"_depth.png"), depth_map, cmap="hot") 
+        plt.imsave(os.path.join(output_dir,data_name+"_normal.png"), normal_map_rgb) 
         
-        d = np.array(scipy.misc.imread(Vis_dir+data_name+"_depth.png"),dtype='f')
+        d = np.array(scipy.misc.imread(os.path.join(output_dir,data_name+"_depth.png")),dtype='f')
         d = np.where(Z3[0,...]>0,d[...,0:3],255.0)
-        n = np.array(scipy.misc.imread(Vis_dir+data_name+"_normal.png"),dtype='f')
+        n = np.array(scipy.misc.imread(os.path.join(output_dir,data_name+"_normal.png")),dtype='f')
         n = np.where(Z3[0,...]>0,n[...,0:3],255.0)
         final_im = get_concat_h(Image.fromarray(np.uint8(X[0,...])),Image.fromarray(np.uint8(d)))
         final_im = get_concat_h(final_im,Image.fromarray(np.uint8(n)))
-        final_im.save(Vis_dir+data_name+"_results.png")
+        final_im.save(os.path.join(output_dir,data_name+"_results.png"))
         
-        os.remove(Vis_dir+data_name+"_depth.png")
-        os.remove(Vis_dir+data_name+"_normal.png")
+        os.remove(os.path.join(output_dir,data_name+"_depth.png"))
+        os.remove(os.path.join(output_dir,data_name+"_normal.png"))
     
